@@ -49,35 +49,50 @@ bool DallasTemperature::initConnection(const uint8_t* deviceAddress) {
 	ScratchPad scratchPad;
 	
 	if (!isConnected(deviceAddress, scratchPad)) {
+        // Serial.println("DallasTemperature::initConnection:52 - not connected");
 		return false;
 	}
 		
 	// assume the sensor has just been powered on. So this should only be called on initializtion, or
-	// after a device was disconnected.			
-	if (scratchPad[HIGH_ALARM_TEMP]) {		// conditional to avoid wear on eeprom. 			
-		scratchPad[HIGH_ALARM_TEMP] = 0;
-		writeScratchPad(deviceAddress, scratchPad, true);	// save to eeprom
-		
-		// check if the write was successful (HIGH_ALARAM_TEMP == 0)
-		if (!isConnected(deviceAddress, scratchPad) || !detectedReset(scratchPad))
-			return false;		
-	}
-	#if REQUIRESONLY12BITCONVERSION		
-		scratchPad[CONFIGURATION] = TEMP_12_BIT;
-	#endif
-	scratchPad[HIGH_ALARM_TEMP]=1;
-	writeScratchPad(deviceAddress, scratchPad, false);	// don't save to eeprom, so that it reverts to 0 on reset
-	// from this point on, if we read a scratchpad with a 0 value in HIGH_ALARM (detectedReset() returns true)
-	// it means the device has reset or the previous write of the scratchpad above was unsuccessful.
-	// Either way, initConnection() should be called again	
+	// after a device was disconnected.	
+    if (deviceAddress[0] != MAX31850MODEL) { // SKIP THIS CHECK on MAX31850!
+        if (scratchPad[HIGH_ALARM_TEMP]) {		// conditional to avoid wear on eeprom. 			
+            scratchPad[HIGH_ALARM_TEMP] = 0;
+            writeScratchPad(deviceAddress, scratchPad, true);	// save to eeprom
+            // Serial.println("DallasTemperature::initConnection:61 - writng scratchpad[HIGH_ALARM_TEMP] to 0");
+            
+            // check if the write was successful (HIGH_ALARAM_TEMP == 0)
+            if (!isConnected(deviceAddress, scratchPad)) {
+                // Serial.println("DallasTemperature::initConnection:65 - Failed to write HIGH_TEMP_ALARM, not connected");
+                return false;		
+            }
+                
+            if (!detectedReset(scratchPad, deviceAddress)) {
+                // Serial.println("DallasTemperature::initConnection:70 - Failed to write HIGH_TEMP_ALARM, reset detected");
+                return false;		
+            }
+        }
+        
+        #if REQUIRESONLY12BITCONVERSION
+            scratchPad[CONFIGURATION] = TEMP_12_BIT;
+        #endif
+        scratchPad[HIGH_ALARM_TEMP]=1;
+        writeScratchPad(deviceAddress, scratchPad, false);	// don't save to eeprom, so that it reverts to 0 on reset
+        // from this point on, if we read a scratchpad with a 0 value in HIGH_ALARM (detectedReset() returns true)
+        // it means the device has reset or the previous write of the scratchpad above was unsuccessful.
+        // Either way, initConnection() should be called again	
+    }
 #endif	
 	return true;
 }
 
 bool DallasTemperature::detectedReset(const uint8_t* scratchPad)
+bool DallasTemperature::detectedReset(const uint8_t* scratchPad, const uint8_t* deviceAddress)
 {
 	#if REQUIRESRESETDETECTION
 	bool reset = (scratchPad[HIGH_ALARM_TEMP]==0);
+    if (deviceAddress[0] == MAX31850MODEL) // SKIP THIS CHECK on MAX31850!
+        reset = false;
 	return reset;
 	#else
 	return false;
@@ -155,7 +170,7 @@ bool DallasTemperature::getAddress(uint8_t* deviceAddress, uint8_t index)
 bool DallasTemperature::isConnected(const uint8_t* deviceAddress)
 {
     ScratchPad scratchPad;
-    return isConnected(deviceAddress, scratchPad) && !detectedReset(scratchPad);
+    return isConnected(deviceAddress, scratchPad) && !detectedReset(scratchPad, deviceAddress);
 }
 
 // attempt to determine if the device at the given address is connected to the bus
@@ -168,7 +183,7 @@ bool DallasTemperature::isConnected(const uint8_t* deviceAddress, uint8_t* scrat
 	#if REQUIRESPARASITEPOWERAVAILABLE
 		return (_wire->crc8(scratchPad, 8) == scratchPad[SCRATCHPAD_CRC]);
 	#else
-		return (_wire->crc8(scratchPad, 8) == scratchPad[SCRATCHPAD_CRC] && !readPowerSupply(deviceAddress));
+		return (_wire->crc8(scratchPad, 8) == scratchPad[SCRATCHPAD_CRC]);
 	#endif
 }
 
@@ -269,12 +284,15 @@ void DallasTemperature::writeScratchPad(const uint8_t* deviceAddress, const uint
 }
 
 // reads the device's power requirements
+// true indicates parasite powered (bus pulled low)
 bool DallasTemperature::readPowerSupply(const uint8_t* deviceAddress)
 {
     bool ret = false;
     sendCommand(deviceAddress, READPOWERSUPPLY);
     if (_wire->read_bit() == 0) ret = true;
     _wire->reset();
+    // Serial.print("DallasTemperature::readPowerSupply - ");
+    // Serial.println(ret);
     return ret;
 }
 
@@ -310,6 +328,10 @@ bool DallasTemperature::setResolution(const uint8_t* deviceAddress, uint8_t newR
     ScratchPad scratchPad;
     if (isConnected(deviceAddress, scratchPad))
     {
+        // Don't try to update resolution on the MAX31850. It freezes?
+        if(deviceAddress[0] == MAX31850MODEL)
+            return true;
+
         // DS18S20 has a fixed 9-bit resolution
         if (!isDS18S20Model(deviceAddress))
         {
@@ -378,6 +400,9 @@ uint8_t DallasTemperature::getResolution(const uint8_t* deviceAddress)
         case TEMP_9_BIT:
             return 9;
         }
+        // special exception for MAX31850
+        if ((scratchPad[CONFIGURATION] & 0xF0) == 0xF0) 
+            return 12;
 #endif		
     }
     return 0;
@@ -456,9 +481,20 @@ bool DallasTemperature::requestTemperaturesByAddress(const uint8_t* deviceAddres
 
     // check device
     ScratchPad scratchPad;
-    if (!isConnected(deviceAddress, scratchPad) || detectedReset(scratchPad)) {
+    if (!isConnected(deviceAddress, scratchPad)) {
+        // Serial.println("DallasTemperature::requestTemperaturesByAddress:483 - failed: not connected");
 		return false;
 	}
+
+    if (readPowerSupply(deviceAddress)) {
+        // Serial.println("DallasTemperature::requestTemperaturesByAddress:488 - failed: parasite powered");
+		// return false;
+    }
+
+    if (detectedReset(scratchPad, deviceAddress)) {
+        // Serial.println("DallasTemperature::requestTemperaturesByAddress:493 - failed: detected reset");
+        return false;
+    }
 
     // ASYNC mode?
 #if REQUIRESWAITFORCONVERSION
@@ -563,6 +599,17 @@ int16_t DallasTemperature::calculateTemperature(const uint8_t* deviceAddress, ui
     if (isDS18S20Model(deviceAddress))
         rawTemperature = ((rawTemperature & 0xFFFE) << 3) + 12 - scratchPad[COUNT_REMAIN];
 
+    if (deviceAddress[0] == MAX31850MODEL)
+    {
+        if (scratchPad[0] & 0x1) {
+            // Serial.println("Scratchpad Error MAX31850");
+            return NAN;
+        }
+        // else {
+        //     return (float)rawTemperature * 0.0625;
+        // }
+    }
+
     return rawTemperature;
 }
 
@@ -575,7 +622,7 @@ int16_t DallasTemperature::calculateTemperature(const uint8_t* deviceAddress, ui
 int16_t DallasTemperature::getTempRaw(const uint8_t* deviceAddress)
 {
     ScratchPad scratchPad;
-    if (isConnected(deviceAddress, scratchPad) && !detectedReset(scratchPad)) return calculateTemperature(deviceAddress, scratchPad);	
+    if (isConnected(deviceAddress, scratchPad) && !detectedReset(scratchPad, deviceAddress)) return calculateTemperature(deviceAddress, scratchPad);	
     return DEVICE_DISCONNECTED;		// use a value that the sensor could not ordinarily measure
 }
 

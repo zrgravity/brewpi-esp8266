@@ -81,6 +81,7 @@
 #define DS18B20MODEL 0x28
 #define DS1822MODEL  0x22
 #define DS1825MODEL  0x3B
+#define MAX31850MODEL 0x3B
 
 
 // OneWire commands
@@ -137,7 +138,7 @@ class DallasTemperature
    * Determines if the device has been powered off since the last call to init connection. 
    * Only functional when REQUIRESRESETDETECTION is enabled, otherwise returns false always.
    */
-  bool detectedReset(const uint8_t* scratchPad);
+  bool detectedReset(const uint8_t* scratchPad, const uint8_t* deviceAddress);
 
 #if REQUIRESDEVICEENUM
   // initialise bus

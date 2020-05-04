@@ -812,6 +812,7 @@ void DeviceManager::enumerateOneWireDevices(EnumerateHardware& h, EnumDevicesCal
 						config.deviceHardware = DEVICE_HARDWARE_ONEWIRE_2413;
 						break;
 		#endif				
+					case MAX31850MODEL:
 					case DS18B20MODEL:
 						config.deviceHardware = DEVICE_HARDWARE_ONEWIRE_TEMP;
 						break;				
@@ -835,6 +836,10 @@ void DeviceManager::enumerateOneWireDevices(EnumerateHardware& h, EnumDevicesCal
 						{	// check that device is not parasite powered
 							DallasTemperature sensor(wire);
 							if(sensor.initConnection(config.hw.address)){
+								// Serial.print("Adding enumerated device: ");							
+								// for (uint8_t i = 0; i < 8; i++)
+									// Serial.print((uint8_t)config.hw.address[i], HEX);
+								// Serial.println("");
 								handleEnumeratedDevice(config, h, callback, output);
 							}
 						}
@@ -901,7 +906,7 @@ void UpdateDeviceState(DeviceDisplay& dd, DeviceConfig& dc, char* val)
 
 	if (dd.write>=0 && dt==DEVICETYPE_SWITCH_ACTUATOR) {
 		// write value to a specific device. For now, only actuators are relevant targets
-		DEBUG_ONLY(logInfoInt(INFO_SETTING_ACTIVATOR_STATE, dd.write!=0));
+		DEBUG_ONLY(logInfoInt(INFO_SETTING_ACTUATOR_VALUE, dd.write!=0));
 		((Actuator*)*ppv)->setActive(dd.write!=0);
 	}
 	else if (dd.value==1) {		// read values 

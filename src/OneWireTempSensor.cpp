@@ -54,25 +54,46 @@ bool OneWireTempSensor::init(){
 		}
 	}
 	
-	logDebug("init onewire sensor");
+	// Serial.print("OneWireTempSensor::init:57 - (");
+	// for (uint8_t i = 0; i < 8; i++)
+	// 	Serial.print((uint8_t)sensorAddress[i], HEX);
+	// Serial.println(")");
 	// This quickly tests if the sensor is connected and initializes the reset detection.
 	// During the main TempControl loop, we don't want to spend many seconds
 	// scanning each sensor since this brings things to a halt.
-	if (sensor && sensor->initConnection(sensorAddress) && requestConversion()) {
-		logDebug("init onewire sensor - wait for conversion");
-		waitForConversion();
-		temperature temp = readAndConstrainTemp();
-		DEBUG_ONLY(logInfoIntStringTemp(INFO_TEMP_SENSOR_INITIALIZED, pinNr, addressString, temp));
-		success = temp!=DEVICE_DISCONNECTED && requestConversion();
-	}	
+	if(sensor)
+	{
+		if (sensor->initConnection(sensorAddress))
+		{
+			if (requestConversion()) {
+				// Serial.println("OneWireTempSensor::init:69 - wait for conversion");
+				waitForConversion();
+				temperature temp = readAndConstrainTemp();
+				DEBUG_ONLY(logInfoIntStringTemp(INFO_TEMP_SENSOR_INITIALIZED, pinNr, addressString, temp));
+				success = temp!=DEVICE_DISCONNECTED && requestConversion();
+			} else {
+				// Serial.println("OneWireTempSensor::init:75 - requestConversion() failed");
+			}
+		} else {
+			// Serial.println("OneWireTempSensor::init:78 - sensor->initConnection() failed");
+		}
+	} else {
+		// Serial.println("OneWireTempSensor::init:81 - sensor is null");
+	}
 	setConnected(success);
-	logDebug("init onewire sensor complete %d", success);
+	// Serial.print("OneWireTempSensor::init:81 - init sensor complete. success: ");
+	// Serial.println(success);
 	return success;
 }
 
 bool OneWireTempSensor::requestConversion()
 {	
 	bool ok = sensor->requestTemperaturesByAddress(sensorAddress);
+	// Serial.print("OneWireTempSensor::requestConversion:92 - requestTemperaturesByAddress(");
+	// for (uint8_t i = 0; i < 8; i++)
+	// 	Serial.print((uint8_t)sensorAddress[i], HEX);
+	// Serial.print(") - ");
+	// Serial.println(ok);
 	setConnected(ok);
 	return ok;
 }
@@ -109,6 +130,11 @@ temperature OneWireTempSensor::read(){
 temperature OneWireTempSensor::readAndConstrainTemp()
 {
 	temperature temp = sensor->getTempRaw(sensorAddress);
+	// Serial.print("getTempRaw(");
+	// for (uint8_t i = 0; i < 8; i++)
+	// 	Serial.print((uint8_t)sensorAddress[i], HEX);
+	// Serial.print("): ");
+	// Serial.println(temp);
 	if(temp == DEVICE_DISCONNECTED){
 		setConnected(false);
 		return TEMP_SENSOR_DISCONNECTED;
@@ -116,5 +142,9 @@ temperature OneWireTempSensor::readAndConstrainTemp()
 	
 	const uint8_t shift = TEMP_FIXED_POINT_BITS-ONEWIRE_TEMP_SENSOR_PRECISION; // difference in precision between DS18B20 format and temperature adt
 	temp = constrainTemp(temp+calibrationOffset+(C_OFFSET>>shift), ((int) MIN_TEMP)>>shift, ((int) MAX_TEMP)>>shift)<<shift;
+	// char out[9];
+	// tempToString(out, temp, 3, 9);
+	// Serial.print("ConvTemp: ");
+	// Serial.println(out);
 	return temp;
 }
