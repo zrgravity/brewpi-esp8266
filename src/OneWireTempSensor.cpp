@@ -37,7 +37,7 @@ OneWireTempSensor::~OneWireTempSensor(){
  * If the result is TEMP_SENSOR_DISCONNECTED then subsequent calls to read() will also return TEMP_SENSOR_DISCONNECTED.
  * Clients should attempt to re-initialize the sensor by calling init() again. 
  */
-bool OneWireTempSensor::init(){
+IRAM_ATTR bool OneWireTempSensor::init(){
 
 	// save address and pinNr for log messages
 	char addressString[17];

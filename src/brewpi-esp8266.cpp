@@ -8,6 +8,7 @@
 
 #ifdef ESP8266
 #include <ESP8266WiFi.h>		//ESP8266 Core WiFi Library (always included so we can disable the radio for serial)
+#include <GDBStub.h>
 
 #ifdef ESP8266_WiFi
 #include <ESP8266mDNS.h>
@@ -62,7 +63,7 @@ bool shouldSaveConfig = false;
 
 //callback notifying us of the need to save config
 void saveConfigCallback() {
-	Serial.println("Should save config");
+	// Serial.println("Should save config");
 	shouldSaveConfig = true;
 }
 
@@ -98,6 +99,9 @@ void handleReset()
 
 void setup()
 {
+	Serial.begin(115200);
+	gdbstub_init();
+
     // Let's get the display going so that we can provide the user a bit of feedback on what's happening
     display.init();
     display.printEEPROMStartup();

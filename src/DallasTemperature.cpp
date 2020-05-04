@@ -44,7 +44,7 @@ DallasTemperature::DallasTemperature(OneWire* _oneWire)
 #endif	
 }
 
-bool DallasTemperature::initConnection(const uint8_t* deviceAddress) {
+IRAM_ATTR bool DallasTemperature::initConnection(const uint8_t* deviceAddress) {
 #if REQUIRESRESETDETECTION
 	ScratchPad scratchPad;
 	
@@ -86,7 +86,7 @@ bool DallasTemperature::initConnection(const uint8_t* deviceAddress) {
 	return true;
 }
 
-bool DallasTemperature::detectedReset(const uint8_t* scratchPad)
+ICACHE_RAM_ATTR
 bool DallasTemperature::detectedReset(const uint8_t* scratchPad, const uint8_t* deviceAddress)
 {
 	#if REQUIRESRESETDETECTION
@@ -175,7 +175,7 @@ bool DallasTemperature::isConnected(const uint8_t* deviceAddress)
 
 // attempt to determine if the device at the given address is connected to the bus
 // also allows for updating the read scratchpad.
-bool DallasTemperature::isConnected(const uint8_t* deviceAddress, uint8_t* scratchPad)
+ICACHE_RAM_ATTR bool DallasTemperature::isConnected(const uint8_t* deviceAddress, uint8_t* scratchPad)
 {
     readScratchPad(deviceAddress, scratchPad);
 	// Also check that device is not parasite powered, if this is disabled.
